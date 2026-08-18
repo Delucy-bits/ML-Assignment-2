@@ -56,11 +56,6 @@ dataset described above, and evaluated on the same held-out test set
 | Random Forest (Ensemble)                 | Solid, well-balanced performance and a clear improvement over the single Decision Tree on every metric — a good illustration of how averaging many trees reduces variance. Its very high AUC (0.994) shows the ranking of predictions is excellent even where hard classification isn't perfect. |
 | **Overall Winner for the used dataset?** | **Logistic Regression** — highest score on all 6 metrics for this dataset and split. |
 
-> **Note:** These results come from one fixed 80/20 split (`random_state=42`).
-> Rankings between Logistic Regression, kNN, and Random Forest can shift a
-> little with a different split or with cross-validation — worth trying if
-> you want to stress-test this conclusion.
-
 ## Project Structure
 
 ```
