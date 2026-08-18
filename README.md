@@ -29,7 +29,7 @@ Streamlit app.
 
 ## c. GitHub Repository Link
 
-https://github.com/Delucy-bits/ML-Assignment-2.git/tree/master
+https://github.com/Delucy-bits/ML-Assignment-2
 
 ## d. Models Used
 
