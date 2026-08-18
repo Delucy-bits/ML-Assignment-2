@@ -182,18 +182,53 @@ def render_classification_table(report: dict) -> str:
     for label in (m, b):
         r = report[label]
         rows += (f"<tr><td>{label}</td><td>{r['precision']:.3f}</td>"
-                  f"<td>{r['recall']:.3f}</td><td>{r['f1-score']:.3f}</td>"
-                  f"<td>{int(r['support'])}</td></tr>")
+                 f"<td>{r['recall']:.3f}</td><td>{r['f1-score']:.3f}</td>"
+                 f"<td>{int(r['support'])}</td></tr>")
     macro, weighted = report["macro avg"], report["weighted avg"]
     total = int(macro["support"])
     rows += f'<tr class="summary"><td>Accuracy</td><td colspan="3">{report["accuracy"]:.3f}</td><td>{total}</td></tr>'
     rows += (f"<tr><td>Macro avg</td><td>{macro['precision']:.3f}</td>"
-              f"<td>{macro['recall']:.3f}</td><td>{macro['f1-score']:.3f}</td><td>{total}</td></tr>")
+             f"<td>{macro['recall']:.3f}</td><td>{macro['f1-score']:.3f}</td><td>{total}</td></tr>")
     rows += (f"<tr><td>Weighted avg</td><td>{weighted['precision']:.3f}</td>"
-              f"<td>{weighted['recall']:.3f}</td><td>{weighted['f1-score']:.3f}</td><td>{total}</td></tr>")
+             f"<td>{weighted['recall']:.3f}</td><td>{weighted['f1-score']:.3f}</td><td>{total}</td></tr>")
     return f"""<div class="report-panel"><table class="report-table">
       <thead><tr><th></th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr></thead>
       <tbody>{rows}</tbody></table></div>"""
+
+
+
+def get_model_ranking(all_results: dict) -> pd.DataFrame:
+    """Rank models using F1 as the primary overall performance measure."""
+    rows = []
+    for name, result in all_results.items():
+        rows.append({
+            "Model": name,
+            "Accuracy": result["Accuracy"],
+            "AUC": result["AUC"],
+            "Precision": result["Precision"],
+            "Recall": result["Recall"],
+            "F1": result["F1"],
+            "MCC": result["MCC"],
+        })
+
+    ranking = pd.DataFrame(rows)
+    ranking = ranking.sort_values(
+        by=["F1", "Accuracy", "MCC"],
+        ascending=False,
+    ).reset_index(drop=True)
+    ranking.insert(0, "Rank", range(1, len(ranking) + 1))
+    return ranking
+
+
+def model_interpretation(model_name: str, metrics: dict) -> str:
+    return (
+        f"{model_name} achieved an accuracy of {metrics['Accuracy']:.3f}, "
+        f"with precision of {metrics['Precision']:.3f}, recall of "
+        f"{metrics['Recall']:.3f}, and an F1 score of {metrics['F1']:.3f}. "
+        f"Its ROC-AUC was {metrics['AUC']:.3f} and MCC was "
+        f"{metrics['MCC']:.3f}, indicating strong classification performance "
+        "on the uploaded test set."
+    )
 
 
 st.markdown(CSS, unsafe_allow_html=True)
@@ -219,20 +254,27 @@ if uploaded_file is not None:
 
     if "target" not in df.columns:
         st.error("The uploaded CSV must include a 'target' column with the true labels "
-                  "(0 = malignant, 1 = benign). Use the provided test_data.csv.")
+                 "(0 = malignant, 1 = benign). Use the provided test_data.csv.")
     else:
         X = df.drop(columns=["target"])
         y_true = df["target"]
+
+        st.markdown(
+            f"""
+            <div class="status-card">
+                ✓ <strong>{uploaded_file.name}</strong> loaded
+                &nbsp;&middot;&nbsp; {len(df)} test samples
+                &nbsp;&middot;&nbsp; {X.shape[1]} features
+                &nbsp;&middot;&nbsp; Target column detected
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         try:
             scaler = load_pickle("model/scaler.pkl")
             X_scaled = scaler.transform(X)
 
             all_results = {name: compute_model_results(name, X_scaled, y_true) for name in MODEL_FILES}
-
-            st.markdown('<div class="section-eyebrow">On your uploaded data</div>'
-                        '<div class="section-title">Overall comparison</div>', unsafe_allow_html=True)
-            st.markdown(render_overall_comparison(all_results), unsafe_allow_html=True)
-            st.markdown('<hr class="report-divider">', unsafe_allow_html=True)
 
             selected = all_results[model_choice]
 
@@ -251,6 +293,18 @@ if uploaded_file is not None:
             </div>
             """, unsafe_allow_html=True)
 
+            st.markdown(
+                f"""
+                <div class="dataset-card">
+                    <div class="dataset-title">Interpretation</div>
+                    <div class="dataset-subtitle">
+                        {model_interpretation(model_choice, selected)}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
             cm = confusion_matrix(y_true, selected["y_pred"])
             report = classification_report(y_true, selected["y_pred"], target_names=list(CLASS_LABELS), output_dict=True)
 
@@ -262,9 +316,66 @@ if uploaded_file is not None:
                 st.markdown('<div class="section-eyebrow">Classification report</div>', unsafe_allow_html=True)
                 st.markdown(render_classification_table(report), unsafe_allow_html=True)
 
+            # Overall comparison is intentionally the FINAL section.
+            st.markdown('<hr class="report-divider">', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="section-eyebrow">Final summary</div>'
+                '<div class="section-title">Overall model comparison</div>',
+                unsafe_allow_html=True,
+            )
+
+            ranking = get_model_ranking(all_results)
+            best = ranking.iloc[0]
+
+            st.markdown(
+                f"""
+                <div class="headline-row">
+                  <div class="headline-stat">
+                    <div class="headline-label">Best overall model</div>
+                    <div class="headline-value" style="font-size: 28px;">
+                        {best['Model']}
+                    </div>
+                  </div>
+                  <div class="headline-stat">
+                    <div class="headline-label">Best F1 score</div>
+                    <div class="headline-value">{best['F1']:.3f}</div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Compact ranked table.
+            ranked_display = ranking.copy()
+            ranked_display["Accuracy"] = ranked_display["Accuracy"].map(lambda x: f"{x:.3f}")
+            ranked_display["AUC"] = ranked_display["AUC"].map(lambda x: f"{x:.3f}")
+            ranked_display["Precision"] = ranked_display["Precision"].map(lambda x: f"{x:.3f}")
+            ranked_display["Recall"] = ranked_display["Recall"].map(lambda x: f"{x:.3f}")
+            ranked_display["F1"] = ranked_display["F1"].map(lambda x: f"{x:.3f}")
+            ranked_display["MCC"] = ranked_display["MCC"].map(lambda x: f"{x:.3f}")
+
+            st.dataframe(
+                ranked_display,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            # Simple visual comparison.
+            chart_df = ranking.set_index("Model")[["Accuracy", "F1"]]
+            st.markdown(
+                '<div class="section-eyebrow">Performance overview</div>',
+                unsafe_allow_html=True,
+            )
+            st.bar_chart(chart_df)
+
+            st.caption(
+                "Models are ranked primarily by F1 score, with Accuracy and MCC "
+                "used as tie-breakers. Higher values are better for all metrics."
+            )
+
         except ValueError as e:
             st.error("Couldn't run predictions on this file — check that it has the same "
-                      f"30 feature columns as test_data.csv. Details: {e}")
+                     f"30 feature columns as test_data.csv. Details: {e}")
 else:
     st.markdown('<div class="empty-state">Upload test_data.csv (included in this repo) to generate a report. '
                 'Only test data should be uploaded here, per the assignment\'s Streamlit free-tier constraint.</div>',
