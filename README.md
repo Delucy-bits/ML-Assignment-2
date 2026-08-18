@@ -7,7 +7,7 @@ from benign ones based on measurements taken from digitized images of a
 fine needle aspirate (FNA) of a breast mass. This project frames diagnosis
 as a **binary classification problem**: given 30 numeric features describing
 cell nuclei characteristics, predict whether a tumor is **malignant** or
-**benign**. Six classification models are trained on the same dataset,
+**benign**. Five classification models are trained on the same dataset,
 evaluated with six standard metrics, and compared through an interactive
 Streamlit app.
 
@@ -49,8 +49,8 @@ dataset described above, and evaluated on the same held-out test set
 
 | ML Model Name                            | Observation about model performance |
 |------------------------------------------|---|
-| Logistic Regression                      | Best model on every single metric here. The features are standardized and this dataset is known to be close to linearly separable in this space, which plays to a linear model's strengths — low variance, no overfitting, and coefficients that stay interpretable. Only 2 misclassifications out of 114 test cases. |
-| Decision Tree                            | Weakest model across the board. A single unpruned tree fits the training data almost perfectly but doesn't generalize as well — classic high-variance/overfitting behavior. It also produced the most false negatives (malignant cases predicted benign), which is the costliest error type in this domain. |
+| Logistic Regression                      | The standardized features appear to work well with a linear decision boundary, which helps explain Logistic Regression's strong performance on this split. Its simpler model structure also makes the learned coefficients relatively interpretable. |
+| Decision Tree                            | Decision Tree was the weakest model on the held-out test set. Its lower test performance compared with the ensemble Random Forest is consistent with the higher variance that can occur with a single decision tree. |
 | kNN                                      | Second-strongest performer. Distance-based classification works well once features are scaled, since malignant and benign cases form fairly separable clusters in the standardized feature space. |
 | Naive Bayes                              | Middling accuracy/F1 but a notably strong AUC (0.987) — its predicted probabilities rank cases well even though its "features are conditionally independent" assumption doesn't really hold here (several features like mean radius, perimeter, and area are directly derived from each other). |
 | Random Forest (Ensemble)                 | Solid, well-balanced performance and a clear improvement over the single Decision Tree on every metric — a good illustration of how averaging many trees reduces variance. Its very high AUC (0.994) shows the ranking of predictions is excellent even where hard classification isn't perfect. |
@@ -93,5 +93,4 @@ streamlit run app.py
 
 1. Upload `test_data.csv` (included in this repo) using the file uploader.
 2. Choose a model from the dropdown.
-3. View accuracy, AUC, precision, recall, F1, and MCC, plus the confusion
-   matrix and classification report for that model on the uploaded data.
+3. The app allows users to upload the held-out test dataset, select a trained model, view its evaluation metrics, inspect the confusion matrix and classification report, and review the final comparison of all five models.
